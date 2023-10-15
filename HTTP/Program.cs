@@ -4,56 +4,44 @@ namespace HTTP;
 
 public class Program
 {
-  private static void MultipleRequest(Socket connection)
+  private static async Task MultipleRequest(Socket socket)
   {
-    var request = new NetworkStream(connection);
-    var requestReader = new StreamReader(request);
-    var streamWriter = new StreamWriter(request);
+    using var networkStream = new NetworkStream(socket);
+    using var streamReader = new StreamReader(networkStream);
+    using var streamWriter = new StreamWriter(networkStream);
     
     try
     {
-      var firstLine = requestReader.ReadLine()?.Split(" ");
+      var firstLine = (await streamReader.ReadLineAsync())?.Split(" ");
 
       if (firstLine == null)
       {
         return;
       }
 
-      var (method, url, httpVersion) = (firstLine[0], firstLine[1], firstLine[2]);
-      var line = requestReader.ReadLine();
-      const int contentLength = 0;
-
-      if (method == "GET" && url == "/contact")
-      {
-        Contact(streamWriter);
-      }
-
-      else
-      {
-        Content(streamWriter);
-      }
+      var (method, url) = (firstLine[0], firstLine[1]);
+      var line = await streamReader.ReadLineAsync();
+      var content = new Content<string>();
+      content.Page(method, url, streamWriter);
       
-      SearchRequest(line, requestReader, contentLength);
+      await SearchRequest(line, streamReader);
+      streamWriter.Flush();
     }
 
     finally
     {
-      connection.Close();
-      request.Close();
-      requestReader.Close();
+      socket.Close();
+      networkStream.Close();
+      streamReader.Close();
       streamWriter.Close();
     }
   }
 
-  private static void SearchRequest(string? line, StreamReader requestReader, int contentLength)
+  private static async Task SearchRequest(string? line, StreamReader streamReader)
   {
-    if (contentLength > 0)
-    {
-      var bytes = new char[contentLength];
-      requestReader.Read(bytes, 0, contentLength);
-    }
+    var contentLength = 0;
     
-    while (!string.IsNullOrEmpty(line) && !requestReader.EndOfStream)
+    while (!string.IsNullOrEmpty(line) && !streamReader.EndOfStream)
     {
       var pieces = line.Split(":");
       var (header, value) = (pieces[0], pieces[1]);
@@ -63,52 +51,25 @@ public class Program
         contentLength = int.Parse(value);
       }
 
-      line = requestReader.ReadLine();
+      line = await streamReader.ReadLineAsync();
+    }
+
+    if (contentLength > 0)
+    {
+      var bytes = new char[contentLength];
+      await streamReader.ReadAsync(bytes, 0, contentLength);
     }
   }
-
-  private static void Content(TextWriter streamWriter)
-  {
-    var content = "HTTP/2.0 200 OK\r\nContent-Type: text/html\r\nContent-Length: 1000\r\n\r\n";
-    content += "<html>";
-    content += "  <head>";
-    content += "    <title>HTTP requests</title>";
-    content += "  </head>";
-    content += "  <body>";
-    content += "    <p>Welcome at the website of Amusement park";
-    content += "    <a href='https://nl.wikipedia.org/wiki/Den_Haag' target='blank'>The Hague!</a></p>";
-    content += "  </body>";
-    content += "</html>";
-    
-    streamWriter.Write(content);
-    streamWriter.Flush();
-  }
-
-  private static void Contact(TextWriter streamWriter)
-  {
-    var content = "HTTP/2.0 200 OK\r\nContent-Type: text/html\r\nContent-Length: 1000\r\n\r\n";
-    content += "<html>";
-    content += "  <head>";
-    content += "    <title>HTTP requests</title>";
-    content += "  </head>";
-    content += "  <body>";
-    content += "    <p>For more information, please contact us at</p>";
-    content += "  </body>";
-    content += "</html>";
-    
-    streamWriter.Write(content);
-    streamWriter.Flush();
-  } 
   
-  private static void Main()
+  private static async Task Main()
   {
-    var server = new TcpListener(new IPAddress(new byte[] {127, 0, 0, 1}), 5000);
-    server.Start();
+    var tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 5000);
+    tcpListener.Start();
 
     while (true)
     {
-      var connection = server.AcceptSocket();
-      Task.Run(() => MultipleRequest(connection));
+      var socket = await tcpListener.AcceptSocketAsync();
+      await Task.Run(() => MultipleRequest(socket));
     }
   }
 }
