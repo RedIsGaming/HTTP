@@ -18,11 +18,22 @@ public class Program
       {
         return;
       }
-      
+
+      var (method, url, httpVersion) = (firstLine[0], firstLine[1], firstLine[2]);
       var line = requestReader.ReadLine();
       const int contentLength = 0;
+
+      if (method == "GET" && url == "/contact")
+      {
+        Contact(streamWriter);
+      }
+
+      else
+      {
+        Content(streamWriter);
+      }
+      
       SearchRequest(line, requestReader, contentLength);
-      Content(streamWriter);
     }
 
     finally
@@ -45,7 +56,7 @@ public class Program
     while (!string.IsNullOrEmpty(line) && !requestReader.EndOfStream)
     {
       var pieces = line.Split(":");
-      (string header, var value) = (pieces[0], pieces[1]);
+      var (header, value) = (pieces[0], pieces[1]);
 
       if (header.ToLower() == "content-length")
       {
@@ -65,13 +76,29 @@ public class Program
     content += "  </head>";
     content += "  <body>";
     content += "    <p>Welcome at the website of Amusement park";
-    content += "    <a href='nl.wikipedia.org/wiki/Den_Haag' target='blank'>The Hague!</a></p>";
+    content += "    <a href='https://nl.wikipedia.org/wiki/Den_Haag' target='blank'>The Hague!</a></p>";
     content += "  </body>";
     content += "</html>";
     
     streamWriter.Write(content);
     streamWriter.Flush();
   }
+
+  private static void Contact(TextWriter streamWriter)
+  {
+    var content = "HTTP/2.0 200 OK\r\nContent-Type: text/html\r\nContent-Length: 1000\r\n\r\n";
+    content += "<html>";
+    content += "  <head>";
+    content += "    <title>HTTP requests</title>";
+    content += "  </head>";
+    content += "  <body>";
+    content += "    <p>For more information, please contact us at</p>";
+    content += "  </body>";
+    content += "</html>";
+    
+    streamWriter.Write(content);
+    streamWriter.Flush();
+  } 
   
   private static void Main()
   {
